@@ -465,15 +465,14 @@ body {
       <input type="file" id="config-import" style="display:none" accept=".json" onchange="importConfig(this)">
     </div>
 
-    <p id="init-status" style="margin-top: 14px; font-size: 12px; color: var(--text-muted); text-align: center; min-height: 18px;"></p>
+    <p id="init-status" style="margin-top: 14px; font-size: 12px; color: var(--text-muted); text-align: center; min-height: 18px;">✅ 初始化完成！配置已保存到当前域名（http://localhost:8897），请始终用此方式打开。</p>
 
-    <div id="init-tips" style="margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--primary-lighter); border: 1px solid var(--primary-light); font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
-    </div>
+    <div id="init-tips" style="margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--primary-lighter); border: 1px solid var(--primary-light); font-size: 12px; color: var(--text-secondary); line-height: 1.6;"><strong style="color:var(--primary);">📌 当前通过 <code>http://localhost:8897</code> 打开</strong><br>请始终用<strong style="color:var(--accent-red);">同一地址</strong>访问本系统，配置信息保存在当前域名下。<br>OSS 跨域来源填 <code>http://localhost:8897</code>，Methods 勾选 GET/POST/PUT/DELETE</div>
   </div>
 </div>
 
 <!-- ============ 登录页面 ============ -->
-<div id="login-page" class="login-overlay" style="display:none;">
+<div id="login-page" class="login-overlay" style="display: none;">
   <div class="bg"></div>
   <div class="login-card">
     <div class="logo" style="margin: 0 auto 16px;">KD</div>
@@ -607,7 +606,7 @@ body {
           <div class="user-row">
             <div class="info">
               <div class="name">admin</div>
-              <div class="role admin">👑 管理员 · 2026-06-25 11:38</div>
+              <div class="role admin">👑 管理员 · 2026-06-25 13:59</div>
             </div>
             
           </div>
@@ -782,7 +781,7 @@ body {
 </div>
 
 <!-- ============ Toast ============ -->
-<div id="toast" class="toast show"><div class="toast-inner success" id="toast-inner">GitHub配置保存成功！</div></div>
+<div id="toast" class="toast show"><div class="toast-inner warning" id="toast-inner">⚠️ 配置已上传，但当前网络无法访问该配置URL，他人可能加载失败。</div></div>
 
 <script>
 // ==================== 配置 & 常量 ====================
@@ -2153,6 +2152,35 @@ function hideGitHubDeployProgress() {
   if (progressDiv) progressDiv.remove();
 }
 
+function showOSSConfigUploadFallback(configStr, error) {
+  const cfg = JSON.parse(configStr || '{}');
+  const blob = new Blob([configStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const modal = document.createElement('div');
+  modal.id = 'oss-config-fallback-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:10003;overflow-y:auto;';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card);padding:30px;border-radius:10px;width:90%;max-width:600px;max-height:90vh;overflow-y:auto;border:1px solid var(--border);box-shadow:var(--shadow);">
+      <h2 style="color:#dc2626;margin-bottom:15px;">⚠️ OSS配置自动上传失败</h2>
+      <p style="margin-bottom:10px;color:var(--text-secondary);font-size:13px;">错误信息：<code>${error && error.message ? error.message : '未知错误'}</code></p>
+      <p style="margin-bottom:15px;color:var(--text-primary);font-size:14px;">请按以下步骤手动上传配置文件，然后重新点击部署：</p>
+      <div style="background:#f8fafc;border:1px solid var(--border-light);padding:15px;border-radius:6px;margin-bottom:15px;font-size:13px;color:var(--text-primary);line-height:1.8;">
+        <strong>步骤1：</strong>点击下方按钮下载 <code>deploy_config.json</code><br>
+        <a href="${url}" download="deploy_config.json" style="display:inline-block;margin-top:8px;padding:6px 12px;background:var(--primary);color:#fff;border-radius:4px;text-decoration:none;">⬇️ 下载 deploy_config.json</a><br><br>
+        <strong>步骤2：</strong>打开 <a href="https://oss.console.aliyun.com/" target="_blank" style="color:var(--primary);">阿里云OSS控制台</a>，进入你的 bucket：<code>${cfg.bucket || ''}</code><br><br>
+        <strong>步骤3：</strong>进入 <code>_data</code> 文件夹（没有就新建），上传刚才下载的 <code>deploy_config.json</code><br><br>
+        <strong>步骤4：</strong>确保该文件权限为<strong>公共读</strong>（或 bucket 已设置公共读）<br><br>
+        <strong>步骤5：</strong>刷新本页面，重新点击「部署到GitHub Pages」
+      </div>
+      <p style="margin-bottom:15px;color:var(--accent-orange);font-size:12px;">注意：当前文件包含AccessKey密钥，下载后请勿外传，上传完成后立即删除本地文件。</p>
+      <div style="text-align:right;">
+        <button class="btn-primary" onclick="document.getElementById('oss-config-fallback-modal').remove();hideGitHubDeployProgress();">我知道了</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
 window.deployToGitHubPages = async function() {
   if (!GITHUB_CONFIG.owner || !GITHUB_CONFIG.repo || !GITHUB_CONFIG.token) {
     toast('请先配置GitHub信息！', 'error');
@@ -2173,21 +2201,41 @@ window.deployToGitHubPages = async function() {
     }
     const ossCfg = JSON.parse(ossConfigStr);
 
+    // 检测是否从file://协议部署，提示用localhost
+    if (location.protocol === 'file:') {
+      toast('⚠️ 建议通过 http://localhost:8897 部署，当前 file:// 协议可能导致OSS上传失败。', 'warning');
+    }
+
     showGitHubDeployProgress('保存配置到OSS...', 20);
+    let ossClient = OSS_CLIENT;
+    if (!ossClient) {
+      ossClient = createOSSClient(ossCfg);
+    }
+    // 将配置上传到 _data/deploy_config.json（公开可读）
     try {
-      // 确保OSS客户端已创建（从localStorage读取）
-      let ossClient = OSS_CLIENT;
-      if (!ossClient) {
-        ossClient = createOSSClient(ossCfg);
-      }
-      // 将配置上传到 _data/deploy_config.json（公开可读）
       await ossClient.put('_data/deploy_config.json', new Blob([ossConfigStr], { type: 'application/json' }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', 'x-oss-object-acl': 'public-read' }
       });
       console.log('[DEPLOY] OSS配置已保存到 _data/deploy_config.json');
-    } catch (e) {
-      console.warn('[DEPLOY] OSS配置保存失败，将尝试直接上传:', e);
-      toast('⚠️ 配置保存到OSS失败: ' + e.message + '，继续尝试部署...', 'warning');
+    } catch (uploadErr) {
+      console.error('[DEPLOY] OSS配置保存失败:', uploadErr);
+      showOSSConfigUploadFallback(ossConfigStr, uploadErr);
+      throw new Error('OSS配置保存失败：' + uploadErr.message + '。请按提示手动上传后重新部署。');
+    }
+    // 验证配置URL是否可访问（部分网络/浏览器插件可能拦截）
+    try {
+      showGitHubDeployProgress('验证配置可访问性...', 30);
+      const checkUrl = `https://${ossCfg.bucket}.oss-${ossCfg.region}.aliyuncs.com/_data/deploy_config.json`;
+      const checkResp = await fetch(checkUrl, { cache: 'no-store' });
+      if (!checkResp.ok) {
+        console.warn('[DEPLOY] 配置URL访问检查非200:', checkResp.status);
+      } else {
+        console.log('[DEPLOY] 配置URL可访问');
+      }
+    } catch (verifyErr) {
+      console.warn('[DEPLOY] 配置URL访问验证失败:', verifyErr);
+      // 验证失败不阻止部署，因为可能是当前网络环境问题，但给用户提示
+      toast('⚠️ 配置已上传，但当前网络无法访问该配置URL，他人可能加载失败。', 'warning');
     }
 
     // 第二步：将bucket和region写入HTML（这些不是密钥，不会被GitHub拦截）
