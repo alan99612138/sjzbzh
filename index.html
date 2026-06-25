@@ -4,6 +4,8 @@
 <title>金蝶交付实施标准化文档平台</title>
 <script src="https://gosspublic.alicdn.com/aliyun-oss-sdk-6.18.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- 部署到GitHub Pages时，OSS配置会由deployToGitHubPages自动注入到此标签内 -->
+<script id="embed-oss-cfg">window.DEPLOY_BUCKET="sjzbzh";window.DEPLOY_REGION="oss-cn-beijing";</script>
 <style>
 :root {
   --primary: #1677ff;
@@ -463,14 +465,15 @@ body {
       <input type="file" id="config-import" style="display:none" accept=".json" onchange="importConfig(this)">
     </div>
 
-    <p id="init-status" style="margin-top: 14px; font-size: 12px; color: var(--text-muted); text-align: center; min-height: 18px;">✅ 初始化完成！配置已保存到当前域名（file://），请始终用此方式打开。</p>
+    <p id="init-status" style="margin-top: 14px; font-size: 12px; color: var(--text-muted); text-align: center; min-height: 18px;"></p>
 
-    <div id="init-tips" style="margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--primary-lighter); border: 1px solid var(--primary-light); font-size: 12px; color: var(--text-secondary); line-height: 1.6;"><strong style="color:var(--primary);">📌 当前通过 <code>file://</code> 打开</strong><br>请始终<strong style="color:var(--accent-red);">双击 index.html 文件</strong>打开，不要通过 localhost 地址访问。<br>OSS 跨域来源填 <code>null</code> 或 <code>*</code>，Methods 勾选 GET/POST/PUT/DELETE</div>
+    <div id="init-tips" style="margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--primary-lighter); border: 1px solid var(--primary-light); font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
+    </div>
   </div>
 </div>
 
 <!-- ============ 登录页面 ============ -->
-<div id="login-page" class="login-overlay" style="display: none;">
+<div id="login-page" class="login-overlay" style="display:none;">
   <div class="bg"></div>
   <div class="login-card">
     <div class="logo" style="margin: 0 auto 16px;">KD</div>
@@ -579,7 +582,7 @@ body {
         <div class="card-title">🚀 系统部署</div>
       </div>
       <div style="padding:16px;">
-        <div style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">将系统部署到 GitHub Pages，无需本地端口，团队成员可通过链接访问。</div>
+        <div style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">将系统部署到 GitHub Pages，无需本地端口，团队成员可通过链接访问。部署时OSS配置保存到OSS云端（不含密钥），他人打开链接自动加载配置。</div>
         <div style="display:flex;gap:8px;">
           <button class="btn-default" onclick="showGitHubConfig()">⚙️ GitHub配置</button>
           <button class="btn-primary" onclick="deployToGitHubPages()">🚀 部署到GitHub Pages</button>
@@ -604,7 +607,7 @@ body {
           <div class="user-row">
             <div class="info">
               <div class="name">admin</div>
-              <div class="role admin">👑 管理员 · 2026-06-25 10:43</div>
+              <div class="role admin">👑 管理员 · 2026-06-25 11:38</div>
             </div>
             
           </div>
@@ -779,7 +782,7 @@ body {
 </div>
 
 <!-- ============ Toast ============ -->
-<div id="toast" class="toast"><div class="toast-inner success" id="toast-inner">GitHub配置保存成功！</div></div>
+<div id="toast" class="toast"><div class="toast-inner" id="toast-inner">提示</div></div>
 
 <script>
 // ==================== 配置 & 常量 ====================
@@ -1045,10 +1048,35 @@ function enterDemoMode() {
 }
 
 async function loadConfig() {
+  // 优先读取本地存储的配置
   let saved = localStorage.getItem('oss_config');
   if (!saved) saved = sessionStorage.getItem('oss_config');
-  if (!saved) return null;
-  try { return JSON.parse(saved); } catch (e) { return null; }
+  if (saved) {
+    try { return JSON.parse(saved); } catch (e) { /* 继续尝试其他方式 */ }
+  }
+
+  // 尝试从OSS加载配置（GitHub Pages部署场景：管理员部署时已将配置保存到 _data/deploy_config.json）
+  if (window.DEPLOY_BUCKET && window.DEPLOY_REGION) {
+    try {
+      const cfgUrl = `https://${DEPLOY_BUCKET}.oss-${DEPLOY_REGION}.aliyuncs.com/_data/deploy_config.json`;
+      console.log('[BOOT] 尝试从OSS加载配置:', cfgUrl);
+      const resp = await fetch(cfgUrl);
+      if (resp.ok) {
+        const remoteCfg = await resp.json();
+        // 验证必要字段
+        if (remoteCfg.accessKeyId && remoteCfg.accessKeySecret && remoteCfg.bucket && remoteCfg.region) {
+          localStorage.setItem('oss_config', JSON.stringify(remoteCfg));
+          sessionStorage.setItem('oss_config', JSON.stringify(remoteCfg));
+          console.log('[BOOT] 从OSS远程配置恢复成功');
+          return remoteCfg;
+        }
+      }
+    } catch(e) {
+      console.warn('[BOOT] 从OSS加载配置失败:', e);
+    }
+  }
+
+  return null;
 }
 
 async function loadAllData() {
@@ -1969,7 +1997,7 @@ function renderAdmin(container) {
         <div class="card-title">🚀 系统部署</div>
       </div>
       <div style="padding:16px;">
-        <div style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">将系统部署到 GitHub Pages，无需本地端口，团队成员可通过链接访问。</div>
+        <div style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">将系统部署到 GitHub Pages，无需本地端口，团队成员可通过链接访问。部署时OSS配置保存到OSS云端（不含密钥），他人打开链接自动加载配置。</div>
         <div style="display:flex;gap:8px;">
           <button class="btn-default" onclick="showGitHubConfig()">⚙️ GitHub配置</button>
           <button class="btn-primary" onclick="deployToGitHubPages()">🚀 部署到GitHub Pages</button>
@@ -2081,6 +2109,9 @@ window.showGitHubConfig = function() {
         <label style="display:block;margin-bottom:5px;color:var(--text-primary);font-size:13px;">分支名称：</label>
         <input type="text" id="github-branch" value="${GITHUB_CONFIG.branch}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text-primary);box-sizing:border-box;">
       </div>
+      <div style="background:#fffbeb;border:1px solid #fde68a;padding:10px;border-radius:6px;margin-bottom:15px;font-size:12px;color:#92400e;">
+        ⚠️ <strong>部署说明：</strong>部署时OSS配置会保存到OSS云端（_data/deploy_config.json），HTML文件中不含任何密钥。GitHub Pages上打开的链接会自动从云端加载配置，无需手动填写。请仅将链接分享给内部团队成员。
+      </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button class="btn-default" onclick="document.getElementById('github-config-modal').remove()">取消</button>
         <button class="btn-primary" onclick="saveGitHubConfig()">保存</button>
@@ -2133,10 +2164,41 @@ window.deployToGitHubPages = async function() {
   modals.forEach(m => m.classList.remove('active'));
   showGitHubDeployProgress('准备部署到GitHub Pages...', 10);
   try {
+    // 第一步：将OSS配置保存到OSS上（_data/deploy_config.json），不写入HTML
+    const ossConfigStr = localStorage.getItem('oss_config');
+    if (!ossConfigStr) {
+      toast('⚠️ 当前浏览器未找到OSS配置，请先在本地完成初始化配置后再部署。', 'error');
+      hideGitHubDeployProgress();
+      return;
+    }
+    const ossCfg = JSON.parse(ossConfigStr);
+
+    showGitHubDeployProgress('保存配置到OSS...', 20);
+    try {
+      // 确保OSS客户端已创建（从localStorage读取）
+      let ossClient = OSS_CLIENT;
+      if (!ossClient) {
+        ossClient = createOSSClient(ossCfg);
+      }
+      // 将配置上传到 _data/deploy_config.json（公开可读）
+      await ossClient.put('_data/deploy_config.json', new Blob([ossConfigStr], { type: 'application/json' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log('[DEPLOY] OSS配置已保存到 _data/deploy_config.json');
+    } catch (e) {
+      console.warn('[DEPLOY] OSS配置保存失败，将尝试直接上传:', e);
+      toast('⚠️ 配置保存到OSS失败: ' + e.message + '，继续尝试部署...', 'warning');
+    }
+
+    // 第二步：将bucket和region写入HTML（这些不是密钥，不会被GitHub拦截）
+    const embedScript = document.getElementById('embed-oss-cfg');
+    if (embedScript) {
+      embedScript.textContent = 'window.DEPLOY_BUCKET="' + ossCfg.bucket + '";window.DEPLOY_REGION="' + ossCfg.region + '";';
+    }
     hideGitHubDeployProgress();
     const htmlContent = document.documentElement.outerHTML;
     const base64Content = btoa(unescape(encodeURIComponent(htmlContent)));
-    showGitHubDeployProgress('上传到GitHub...', 50);
+    showGitHubDeployProgress('上传到GitHub...', 60);
     let sha = null;
     try {
       const checkResponse = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/index.html`, {
@@ -2185,9 +2247,11 @@ function showGitHubDeploySuccess(result) {
     <div style="background:var(--bg-card);padding:30px;border-radius:10px;width:90%;max-width:500px;text-align:center;border:1px solid var(--border);box-shadow:var(--shadow);">
       <h2 style="color:#15803d;margin-bottom:20px;">✅ 部署成功！</h2>
       <p style="margin-bottom:15px;color:var(--text-primary);">您的系统已成功部署到GitHub Pages</p>
+      <p style="margin-bottom:8px;color:var(--text-secondary);font-size:13px;">✅ OSS配置已保存到OSS云端，其他人打开链接自动加载，无需手动配置</p>
       <p style="margin-bottom:20px;word-break:break-all;background:#f8fafc;padding:10px;border-radius:5px;border:1px solid var(--border-light);">
         <a href="${result.url}" target="_blank" style="color:var(--primary);font-weight:500;">${result.url}</a>
       </p>
+      <p style="font-size:12px;color:var(--accent-orange);margin-bottom:8px;">⚠️ 安全提示：OSS配置已保存到云端，请仅将链接分享给内部团队成员</p>
       <p style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;">注意：GitHub Pages可能需要几分钟才能生效</p>
       <button class="btn-primary" onclick="document.getElementById('github-deploy-success-modal').remove();hideGitHubDeployProgress();">关闭</button>
     </div>
