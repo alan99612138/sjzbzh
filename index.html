@@ -465,14 +465,15 @@ body {
       <input type="file" id="config-import" style="display:none" accept=".json" onchange="importConfig(this)">
     </div>
 
-    <p id="init-status" style="margin-top: 14px; font-size: 12px; color: var(--text-muted); text-align: center; min-height: 18px;">✅ 初始化完成！配置已保存到当前域名（http://localhost:8897），请始终用此方式打开。</p>
+    <p id="init-status" style="margin-top: 14px; font-size: 12px; color: var(--text-muted); text-align: center; min-height: 18px;"></p>
 
-    <div id="init-tips" style="margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--primary-lighter); border: 1px solid var(--primary-light); font-size: 12px; color: var(--text-secondary); line-height: 1.6;"><strong style="color:var(--primary);">📌 当前通过 <code>http://localhost:8897</code> 打开</strong><br>请始终用<strong style="color:var(--accent-red);">同一地址</strong>访问本系统，配置信息保存在当前域名下。<br>OSS 跨域来源填 <code>http://localhost:8897</code>，Methods 勾选 GET/POST/PUT/DELETE</div>
+    <div id="init-tips" style="margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--primary-lighter); border: 1px solid var(--primary-light); font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
+    </div>
   </div>
 </div>
 
 <!-- ============ 登录页面 ============ -->
-<div id="login-page" class="login-overlay" style="display: none;">
+<div id="login-page" class="login-overlay" style="display:none;">
   <div class="bg"></div>
   <div class="login-card">
     <div class="logo" style="margin: 0 auto 16px;">KD</div>
@@ -781,7 +782,7 @@ body {
 </div>
 
 <!-- ============ Toast ============ -->
-<div id="toast" class="toast show"><div class="toast-inner warning" id="toast-inner">⚠️ 配置已上传，但当前网络无法访问该配置URL，他人可能加载失败。</div></div>
+<div id="toast" class="toast"><div class="toast-inner" id="toast-inner">提示</div></div>
 
 <script>
 // ==================== 配置 & 常量 ====================
@@ -1057,7 +1058,9 @@ async function loadConfig() {
   // 尝试从OSS加载配置（GitHub Pages部署场景：管理员部署时已将配置保存到 _data/deploy_config.json）
   if (window.DEPLOY_BUCKET && window.DEPLOY_REGION) {
     try {
-      const cfgUrl = `https://${DEPLOY_BUCKET}.oss-${DEPLOY_REGION}.aliyuncs.com/_data/deploy_config.json`;
+      // 兼容 region 格式：可能是 "oss-cn-beijing" 或 "cn-beijing"
+      const region = window.DEPLOY_REGION.startsWith('oss-') ? window.DEPLOY_REGION : `oss-${window.DEPLOY_REGION}`;
+      const cfgUrl = `https://${window.DEPLOY_BUCKET}.${region}.aliyuncs.com/_data/deploy_config.json`;
       console.log('[BOOT] 尝试从OSS加载配置:', cfgUrl);
       const resp = await fetch(cfgUrl);
       if (resp.ok) {
@@ -2225,7 +2228,9 @@ window.deployToGitHubPages = async function() {
     // 验证配置URL是否可访问（部分网络/浏览器插件可能拦截）
     try {
       showGitHubDeployProgress('验证配置可访问性...', 30);
-      const checkUrl = `https://${ossCfg.bucket}.oss-${ossCfg.region}.aliyuncs.com/_data/deploy_config.json`;
+      // 兼容 region 格式：可能是 "oss-cn-beijing" 或 "cn-beijing"
+      const deployRegion = ossCfg.region.startsWith('oss-') ? ossCfg.region : `oss-${ossCfg.region}`;
+      const checkUrl = `https://${ossCfg.bucket}.${deployRegion}.aliyuncs.com/_data/deploy_config.json`;
       const checkResp = await fetch(checkUrl, { cache: 'no-store' });
       if (!checkResp.ok) {
         console.warn('[DEPLOY] 配置URL访问检查非200:', checkResp.status);
